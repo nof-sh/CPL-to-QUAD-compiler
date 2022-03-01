@@ -6,12 +6,6 @@ import (
 	"strings"
 )
 
-//import (
-//	"fmt"
-//	"strconv"
-//	"strings"
-//)
-
 // Error represents an error that occurred during code generation.
 type Error struct {
 	Message string
