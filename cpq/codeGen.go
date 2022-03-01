@@ -1,4 +1,4 @@
-package main
+package cpq
 
 import (
 	"bufio"
@@ -9,20 +9,10 @@ import (
 	"strings"
 )
 
-//import (
-//	"bufio"
-//	"bytes"
-//	"fmt"
-//	"io"
-//	"parser"
-//	"strconv"
-//	"strings"
-//)
-
 type CodeGenerator struct {
 	Errors         []Error
 	output         *bufio.Writer
-	Variables      map[string]parser.DataType
+	Variables      map[string]DataType
 	temporaryIndex int
 	labelIndex     int
 	breakStack     []string
@@ -30,7 +20,7 @@ type CodeGenerator struct {
 
 type Expression struct {
 	Code string
-	Type parser.DataType
+	Type DataType
 }
 
 // NewCodeGenerator returns a new instance of CodeGenerator.

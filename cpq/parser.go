@@ -1,4 +1,4 @@
-package main
+package cpq
 
 import (
 	"fmt"
@@ -11,6 +11,17 @@ import (
 //	"strconv"
 //	"strings"
 //)
+
+// Error represents an error that occurred during code generation.
+type Error struct {
+	Message string
+	Pos     Position
+}
+
+// Error returns the string representation of the error.
+func (e *Error) Error() string {
+	return fmt.Sprintf("%s at line %d, char %d", e.Message, e.Pos.Line+1, e.Pos.Column+1)
+}
 
 // Parser represents a CPL parser.
 type Parser struct {
@@ -46,7 +57,7 @@ func (p *Parser) matchToken(tokenTypes ...lexer.TokenType) (*lexer.Token, bool) 
 	return &p.lookahead, false
 }
 
-func (p *Parser) match(tokenTypes ...lexer.TokenType) (*lexer.Token, bool) {
+func (p *Parser) match(tokenTypes ...TokenType) (*Token, bool) {
 	// Try to find the requested token.
 	if token, ok := p.matchToken(tokenTypes...); ok {
 		return token, true

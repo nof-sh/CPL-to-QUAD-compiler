@@ -1,4 +1,4 @@
-package main
+package cpq
 
 //import "util"
 //"token"

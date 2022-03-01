@@ -1,4 +1,4 @@
-package main
+package cpq
 
 import (
 	"fmt"
@@ -40,13 +40,13 @@ func main() {
 	}
 
 	// Lex & Parse
-	ast, parseErrors := parser.Parse(string(code))
+	ast, parseErrors := Parse(string(code))
 	for _, err := range parseErrors {
 		fmt.Fprintf(os.Stderr, "ParseError: %s\n", err.Error())
 	}
 
 	// Codegen
-	output, codegenErrors := codeGen.Codegen(ast)
+	output, codegenErrors := Codegen(ast)
 	for _, err := range codegenErrors {
 		fmt.Fprintf(os.Stderr, "CodegenError: %s\n", err.Error())
 	}
@@ -55,6 +55,6 @@ func main() {
 	if len(parseErrors) == 0 && len(codegenErrors) == 0 {
 		// Write output to the QUAD file
 		outfile := infile[0:len(infile)-3] + ".qud"
-		ioutil.WriteFile(outfile, []byte(codeGen.RemoveLabels(output)+"\n"+Signature), 0644)
+		ioutil.WriteFile(outfile, []byte(RemoveLabels(output)+"\n"+Signature), 0644)
 	}
 }
