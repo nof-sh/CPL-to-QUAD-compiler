@@ -133,15 +133,6 @@ type StatementsBlock struct {
 	Position   Position
 }
 
-// Expression is a combination of numbers, variables and operators that
-// can be evaluated to a value.
-type Expression interface {
-	Node
-	// expression is unexported to ensure implementations of Expression
-	// can only originate in this package.
-	expression()
-}
-
 // BooleanExpression can be evaulated to a boolean value (true or false).
 // NOTE: In CPL, BooleanExpression isn't an Expression! These are two distinct types.
 type BooleanExpression interface {

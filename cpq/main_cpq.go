@@ -32,7 +32,7 @@ func NewCodeGenerator(output io.Writer) *CodeGenerator {
 	return &CodeGenerator{
 		Errors:         []Error{},
 		output:         bufio.NewWriterSize(output, 1),
-		Variables:      map[string]parser.DataType{},
+		Variables:      map[string]DataType{},
 		temporaryIndex: 0,
 		labelIndex:     0,
 		breakStack:     []string{},
@@ -40,7 +40,7 @@ func NewCodeGenerator(output io.Writer) *CodeGenerator {
 }
 
 // Codegen generates code to an output file
-func Codegen(program *parser.Program) (string, []Error) {
+func Codegen(program *Program) (string, []Error) {
 	buf := new(bytes.Buffer)
 
 	c := NewCodeGenerator(buf)
@@ -50,7 +50,7 @@ func Codegen(program *parser.Program) (string, []Error) {
 }
 
 // CodegenProgram generates code for a CPL program.
-func (c *CodeGenerator) CodegenProgram(node *parser.Program) {
+func (c *CodeGenerator) CodegenProgram(node *Program) {
 	// Go over variable declarations
 	for _, declaration := range node.Declarations {
 		for _, name := range declaration.Names {
@@ -71,29 +71,29 @@ func (c *CodeGenerator) CodegenProgram(node *parser.Program) {
 }
 
 // CodegenStatement generates code for a CPL statement.
-func (c *CodeGenerator) CodegenStatement(node parser.Statement) {
+func (c *CodeGenerator) CodegenStatement(node Statement) {
 	switch s := node.(type) {
-	case *parser.AssignmentStatement:
+	case *AssignmentStatement:
 		c.CodegenAssignmentStatement(s)
-	case *parser.InputStatement:
+	case *InputStatement:
 		c.CodegenInputStatement(s)
-	case *parser.OutputStatement:
+	case *OutputStatement:
 		c.CodegenOutputStatement(s)
-	case *parser.IfStatement:
+	case *IfStatement:
 		c.CodegenIfStatement(s)
-	case *parser.WhileStatement:
+	case *WhileStatement:
 		c.CodegenWhileStatement(s)
-	case *parser.SwitchStatement:
+	case *SwitchStatement:
 		c.CodegenSwitchStatement(s)
-	case *parser.BreakStatement:
+	case *BreakStatement:
 		c.CodegenBreakStatement(s)
-	case *parser.StatementsBlock:
+	case *StatementsBlock:
 		c.CodegenStatementsBlock(s)
 	}
 }
 
 // CodegenAssignmentStatement generates code for assignment statements.
-func (c *CodeGenerator) CodegenAssignmentStatement(node *parser.AssignmentStatement) {
+func (c *CodeGenerator) CodegenAssignmentStatement(node *AssignmentStatement) {
 	exp := c.CodegenExpression(node.Value)
 
 	// Make sure the variable is defined.
@@ -110,12 +110,12 @@ func (c *CodeGenerator) CodegenAssignmentStatement(node *parser.AssignmentStatem
 	}
 
 	// Cast type if there's a static_cast
-	if node.CastType != parser.Unknown && node.CastType != exp.Type {
+	if node.CastType != Unknown && node.CastType != exp.Type {
 		exp = c.codegenCastExpression(exp, node.CastType)
 	}
 
 	// Make sure the expression's type is okay
-	if c.Variables[node.Variable] == parser.Integer && exp.Type == parser.Float {
+	if c.Variables[node.Variable] == Integer && exp.Type == Float {
 		c.Errors = append(c.Errors, Error{
 			Message: fmt.Sprintf("cannot assign float value to int variable %s", node.Variable),
 			Pos:     node.Position,
@@ -124,20 +124,20 @@ func (c *CodeGenerator) CodegenAssignmentStatement(node *parser.AssignmentStatem
 	}
 
 	// If the variable is float but the expression is integer, cast it to float.
-	if c.Variables[node.Variable] == parser.Float && exp.Type == parser.Integer {
-		exp = c.codegenCastExpression(exp, parser.Float)
+	if c.Variables[node.Variable] == Float && exp.Type == Integer {
+		exp = c.codegenCastExpression(exp, Float)
 	}
 
 	// Codegen
-	if c.Variables[node.Variable] == parser.Integer {
+	if c.Variables[node.Variable] == Integer {
 		c.output.WriteString(fmt.Sprintf("IASN %s %s\n", node.Variable, exp.Code))
-	} else if c.Variables[node.Variable] == parser.Float {
+	} else if c.Variables[node.Variable] == Float {
 		c.output.WriteString(fmt.Sprintf("RASN %s %s\n", node.Variable, exp.Code))
 	}
 }
 
 // CodegenInputStatement generates code for input statements.
-func (c *CodeGenerator) CodegenInputStatement(node *parser.InputStatement) {
+func (c *CodeGenerator) CodegenInputStatement(node *InputStatement) {
 	// Make sure the variable is defined.
 	if _, exists := c.Variables[node.Variable]; !exists {
 		c.Errors = append(c.Errors, Error{
@@ -147,29 +147,29 @@ func (c *CodeGenerator) CodegenInputStatement(node *parser.InputStatement) {
 		return
 	}
 
-	if c.Variables[node.Variable] == parser.Integer {
+	if c.Variables[node.Variable] == Integer {
 		c.output.WriteString(fmt.Sprintf("IINP %s\n", node.Variable))
-	} else if c.Variables[node.Variable] == parser.Float {
+	} else if c.Variables[node.Variable] == Float {
 		c.output.WriteString(fmt.Sprintf("RINP %s\n", node.Variable))
 	}
 }
 
 // CodegenOutputStatement generates code for output statements.
-func (c *CodeGenerator) CodegenOutputStatement(node *parser.OutputStatement) {
+func (c *CodeGenerator) CodegenOutputStatement(node *OutputStatement) {
 	exp := c.CodegenExpression(node.Value)
 	if exp == nil {
 		return
 	}
 
-	if exp.Type == parser.Integer {
+	if exp.Type == Integer {
 		c.output.WriteString(fmt.Sprintf("IPRT %s\n", exp.Code))
-	} else if exp.Type == parser.Float {
+	} else if exp.Type == Float {
 		c.output.WriteString(fmt.Sprintf("RPRT %s\n", exp.Code))
 	}
 }
 
 // CodegenIfStatement generates code for if statements.
-func (c *CodeGenerator) CodegenIfStatement(node *parser.IfStatement) {
+func (c *CodeGenerator) CodegenIfStatement(node *IfStatement) {
 	condition := c.CodegenBooleanExpression(node.Condition)
 	endIfLabel := c.getNewLabel()
 
@@ -196,7 +196,7 @@ func (c *CodeGenerator) CodegenIfStatement(node *parser.IfStatement) {
 }
 
 // CodegenWhileStatement generates code for while statements.
-func (c *CodeGenerator) CodegenWhileStatement(node *parser.WhileStatement) {
+func (c *CodeGenerator) CodegenWhileStatement(node *WhileStatement) {
 	conditionLabel := c.getNewLabel()
 	endLoopLabel := c.getNewLabel()
 
@@ -215,14 +215,14 @@ func (c *CodeGenerator) CodegenWhileStatement(node *parser.WhileStatement) {
 }
 
 // CodegenSwitchStatement generates code for switch statements.
-func (c *CodeGenerator) CodegenSwitchStatement(node *parser.SwitchStatement) {
+func (c *CodeGenerator) CodegenSwitchStatement(node *SwitchStatement) {
 	// Evaluate expression
 	exp := c.CodegenExpression(node.Expression)
 	if exp == nil {
 		return
 	}
 
-	if exp.Type != parser.Integer {
+	if exp.Type != Integer {
 		c.Errors = append(c.Errors, Error{
 			Message: fmt.Sprintf("switch expression must be an integer"),
 			Pos:     node.Position,
@@ -248,14 +248,14 @@ func (c *CodeGenerator) CodegenSwitchStatement(node *parser.SwitchStatement) {
 	// Generate labels and code for each case
 	for i, switchCase := range node.Cases {
 		c.output.WriteString(fmt.Sprintf("%s:\n", caseLabels[i]))
-		c.CodegenStatement(&parser.StatementsBlock{
+		c.CodegenStatement(&StatementsBlock{
 			Statements: switchCase.Statements,
 		})
 	}
 
 	// Default case
 	c.output.WriteString(fmt.Sprintf("%s:\n", defaultLabel))
-	c.CodegenStatement(&parser.StatementsBlock{
+	c.CodegenStatement(&StatementsBlock{
 		Statements: node.DefaultCase,
 	})
 
@@ -267,7 +267,7 @@ func (c *CodeGenerator) CodegenSwitchStatement(node *parser.SwitchStatement) {
 }
 
 // CodegenBreakStatement generates code for break statements.
-func (c *CodeGenerator) CodegenBreakStatement(node *parser.BreakStatement) {
+func (c *CodeGenerator) CodegenBreakStatement(node *BreakStatement) {
 	if len(c.breakStack) == 0 {
 		c.Errors = append(c.Errors, Error{
 			Message: fmt.Sprintf("break statement must be inside a while loop or a switch case"),
@@ -280,30 +280,30 @@ func (c *CodeGenerator) CodegenBreakStatement(node *parser.BreakStatement) {
 }
 
 // CodegenStatementsBlock generates code for a statements block.
-func (c *CodeGenerator) CodegenStatementsBlock(node *parser.StatementsBlock) {
+func (c *CodeGenerator) CodegenStatementsBlock(node *StatementsBlock) {
 	for _, statement := range node.Statements {
 		c.CodegenStatement(statement)
 	}
 }
 
 // CodegenExpression generates code for a CPL expression.
-func (c *CodeGenerator) CodegenExpression(node parser.Expression) *Expression {
-	switch s := node.(type) {
-	case *parser.ArithmeticExpression:
-		return c.CodegenArithmeticExpression(s)
-	case *parser.VariableExpression:
-		return c.CodegenVariableExpression(s)
-	case *parser.IntLiteral:
-		return c.CodegenIntLiteral(s)
-	case *parser.FloatLiteral:
-		return c.CodegenFloatLiteral(s)
+func (c *CodeGenerator) CodegenExpression(node Expression) *Expression {
+	switch node {
+	case ArithmeticExpression:
+		return c.CodegenArithmeticExpression(node)
+	case VariableExpression:
+		return c.CodegenVariableExpression(node)
+	case IntLiteral:
+		return c.CodegenIntLiteral(node)
+	case FloatLiteral:
+		return c.CodegenFloatLiteral(node)
 	}
 
 	return nil
 }
 
 // CodegenArithmeticExpression generates code for an arithmetic expression.
-func (c *CodeGenerator) CodegenArithmeticExpression(node *parser.ArithmeticExpression) *Expression {
+func (c *CodeGenerator) CodegenArithmeticExpression(node *ArithmeticExpression) *Expression {
 	lhs := c.CodegenExpression(node.LHS)
 	rhs := c.CodegenExpression(node.RHS)
 	if lhs == nil || rhs == nil {
@@ -316,37 +316,37 @@ func (c *CodeGenerator) CodegenArithmeticExpression(node *parser.ArithmeticExpre
 	}
 
 	// Cast integer values to float if necessary
-	if result.Type == parser.Float {
-		lhs = c.codegenCastExpression(lhs, parser.Float)
-		rhs = c.codegenCastExpression(rhs, parser.Float)
+	if result.Type == Float {
+		lhs = c.codegenCastExpression(lhs, Float)
+		rhs = c.codegenCastExpression(rhs, Float)
 	}
 
 	switch node.Operator {
-	case parser.Add:
-		if result.Type == parser.Integer {
+	case Add:
+		if result.Type == Integer {
 			c.output.WriteString(fmt.Sprintf("IADD %s %s %s\n", result.Code, lhs.Code, rhs.Code))
-		} else if result.Type == parser.Float {
+		} else if result.Type == Float {
 			c.output.WriteString(fmt.Sprintf("RADD %s %s %s\n", result.Code, lhs.Code, rhs.Code))
 		}
 
-	case parser.Subtract:
-		if result.Type == parser.Integer {
+	case Subtract:
+		if result.Type == Integer {
 			c.output.WriteString(fmt.Sprintf("ISUB %s %s %s\n", result.Code, lhs.Code, rhs.Code))
-		} else if result.Type == parser.Float {
+		} else if result.Type == Float {
 			c.output.WriteString(fmt.Sprintf("RSUB %s %s %s\n", result.Code, lhs.Code, rhs.Code))
 		}
 
-	case parser.Multiply:
-		if result.Type == parser.Integer {
+	case Multiply:
+		if result.Type == Integer {
 			c.output.WriteString(fmt.Sprintf("IMLT %s %s %s\n", result.Code, lhs.Code, rhs.Code))
-		} else if result.Type == parser.Float {
+		} else if result.Type == Float {
 			c.output.WriteString(fmt.Sprintf("RMLT %s %s %s\n", result.Code, lhs.Code, rhs.Code))
 		}
 
-	case parser.Divide:
-		if result.Type == parser.Integer {
+	case Divide:
+		if result.Type == Integer {
 			c.output.WriteString(fmt.Sprintf("IDIV %s %s %s\n", result.Code, lhs.Code, rhs.Code))
-		} else if result.Type == parser.Float {
+		} else if result.Type == Float {
 			c.output.WriteString(fmt.Sprintf("RDIV %s %s %s\n", result.Code, lhs.Code, rhs.Code))
 		}
 	}
@@ -355,7 +355,7 @@ func (c *CodeGenerator) CodegenArithmeticExpression(node *parser.ArithmeticExpre
 }
 
 // CodegenVariableExpression generates code for a variable expression.
-func (c *CodeGenerator) CodegenVariableExpression(node *parser.VariableExpression) *Expression {
+func (c *CodeGenerator) CodegenVariableExpression(node *VariableExpression) *Expression {
 	// Make sure the variable is defined.
 	if _, exists := c.Variables[node.Variable]; !exists {
 		c.Errors = append(c.Errors, Error{
@@ -369,32 +369,32 @@ func (c *CodeGenerator) CodegenVariableExpression(node *parser.VariableExpressio
 }
 
 // CodegenIntLiteral generates code for an integer literal.
-func (c *CodeGenerator) CodegenIntLiteral(node *parser.IntLiteral) *Expression {
+func (c *CodeGenerator) CodegenIntLiteral(node *IntLiteral) *Expression {
 	return &Expression{
 		Code: fmt.Sprintf("%d", node.Value),
-		Type: parser.Integer,
+		Type: Integer,
 	}
 }
 
 // CodegenFloatLiteral generates code for an float literal.
-func (c *CodeGenerator) CodegenFloatLiteral(node *parser.FloatLiteral) *Expression {
+func (c *CodeGenerator) CodegenFloatLiteral(node *FloatLiteral) *Expression {
 	return &Expression{
 		Code: fmt.Sprintf("%f", node.Value),
-		Type: parser.Float,
+		Type: Float,
 	}
 }
 
 // CodegenBooleanExpression generates code for a CPL boolean expression, and returns
 // the temporary variable that stores its result.
-func (c *CodeGenerator) CodegenBooleanExpression(node parser.BooleanExpression) string {
+func (c *CodeGenerator) CodegenBooleanExpression(node BooleanExpression) string {
 	switch s := node.(type) {
-	case *parser.OrBooleanExpression:
+	case *OrBooleanExpression:
 		return c.CodegenOrBooleanExpression(s)
-	case *parser.AndBooleanExpression:
+	case *AndBooleanExpression:
 		return c.CodegenAndBooleanExpression(s)
-	case *parser.NotBooleanExpression:
+	case *NotBooleanExpression:
 		return c.CodegenNotBooleanExpression(s)
-	case *parser.CompareBooleanExpression:
+	case *CompareBooleanExpression:
 		return c.CodegenCompareBooleanExpression(s)
 	}
 
@@ -402,7 +402,7 @@ func (c *CodeGenerator) CodegenBooleanExpression(node parser.BooleanExpression) 
 }
 
 // CodegenOrBooleanExpression generates code for a boolean OR operation.
-func (c *CodeGenerator) CodegenOrBooleanExpression(node *parser.OrBooleanExpression) string {
+func (c *CodeGenerator) CodegenOrBooleanExpression(node *OrBooleanExpression) string {
 	lhs := c.CodegenBooleanExpression(node.LHS)
 	rhs := c.CodegenBooleanExpression(node.RHS)
 	if lhs == "" || rhs == "" {
@@ -426,7 +426,7 @@ func (c *CodeGenerator) CodegenOrBooleanExpression(node *parser.OrBooleanExpress
 }
 
 // CodegenAndBooleanExpression generates code for a boolean AND operation.
-func (c *CodeGenerator) CodegenAndBooleanExpression(node *parser.AndBooleanExpression) string {
+func (c *CodeGenerator) CodegenAndBooleanExpression(node *AndBooleanExpression) string {
 	lhs := c.CodegenBooleanExpression(node.LHS)
 	rhs := c.CodegenBooleanExpression(node.RHS)
 	if lhs == "" || rhs == "" {
@@ -446,7 +446,7 @@ func (c *CodeGenerator) CodegenAndBooleanExpression(node *parser.AndBooleanExpre
 }
 
 // CodegenNotBooleanExpression generates code for a boolean NOT operation.
-func (c *CodeGenerator) CodegenNotBooleanExpression(node *parser.NotBooleanExpression) string {
+func (c *CodeGenerator) CodegenNotBooleanExpression(node *NotBooleanExpression) string {
 	value := c.CodegenBooleanExpression(node.Value)
 	if value == "" {
 		return ""
@@ -463,34 +463,34 @@ func (c *CodeGenerator) CodegenNotBooleanExpression(node *parser.NotBooleanExpre
 }
 
 // CodegenCompareBooleanExpression generates code for a expression comparison.
-func (c *CodeGenerator) CodegenCompareBooleanExpression(node *parser.CompareBooleanExpression) string {
+func (c *CodeGenerator) CodegenCompareBooleanExpression(node *CompareBooleanExpression) string {
 	// If the operator is x >= y, convert the AST to x == y || x > y
-	if node.Operator == parser.GreaterThanOrEqualTo {
-		return c.CodegenOrBooleanExpression(&parser.OrBooleanExpression{
-			LHS: &parser.CompareBooleanExpression{
+	if node.Operator == GreaterThanOrEqualTo {
+		return c.CodegenOrBooleanExpression(&OrBooleanExpression{
+			LHS: &CompareBooleanExpression{
 				LHS:      node.LHS,
-				Operator: parser.EqualTo,
+				Operator: EqualTo,
 				RHS:      node.RHS,
 			},
-			RHS: &parser.CompareBooleanExpression{
+			RHS: &CompareBooleanExpression{
 				LHS:      node.LHS,
-				Operator: parser.GreaterThan,
+				Operator: GreaterThan,
 				RHS:      node.RHS,
 			},
 		})
 	}
 
 	// If the operator is x <= y, convert the AST to x == y || x < y
-	if node.Operator == parser.LessThenOrEqualTo {
-		return c.CodegenOrBooleanExpression(&parser.OrBooleanExpression{
-			LHS: &parser.CompareBooleanExpression{
+	if node.Operator == LessThenOrEqualTo {
+		return c.CodegenOrBooleanExpression(&OrBooleanExpression{
+			LHS: &CompareBooleanExpression{
 				LHS:      node.LHS,
-				Operator: parser.EqualTo,
+				Operator: EqualTo,
 				RHS:      node.RHS,
 			},
-			RHS: &parser.CompareBooleanExpression{
+			RHS: &CompareBooleanExpression{
 				LHS:      node.LHS,
-				Operator: parser.LessThan,
+				Operator: LessThan,
 				RHS:      node.RHS,
 			},
 		})
@@ -506,39 +506,39 @@ func (c *CodeGenerator) CodegenCompareBooleanExpression(node *parser.CompareBool
 	compareType := calculateExpressionType(lhs.Type, rhs.Type)
 
 	// If the comparison is on floats but one of the operands are integers, cast them to floats.
-	if compareType == parser.Float {
-		lhs = c.codegenCastExpression(lhs, parser.Float)
-		rhs = c.codegenCastExpression(rhs, parser.Float)
+	if compareType == Float {
+		lhs = c.codegenCastExpression(lhs, Float)
+		rhs = c.codegenCastExpression(rhs, Float)
 	}
 
 	result := c.getNewTemporary()
 
 	switch node.Operator {
-	case parser.EqualTo:
-		if compareType == parser.Integer {
+	case EqualTo:
+		if compareType == Integer {
 			c.output.WriteString(fmt.Sprintf("IEQL %s %s %s\n", result, lhs.Code, rhs.Code))
-		} else if compareType == parser.Float {
+		} else if compareType == Float {
 			c.output.WriteString(fmt.Sprintf("REQL %s %s %s\n", result, lhs.Code, rhs.Code))
 		}
 
-	case parser.NotEqualTo:
-		if compareType == parser.Integer {
+	case NotEqualTo:
+		if compareType == Integer {
 			c.output.WriteString(fmt.Sprintf("INQL %s %s %s\n", result, lhs.Code, rhs.Code))
-		} else if compareType == parser.Float {
+		} else if compareType == Float {
 			c.output.WriteString(fmt.Sprintf("RNQL %s %s %s\n", result, lhs.Code, rhs.Code))
 		}
 
-	case parser.GreaterThan:
-		if compareType == parser.Integer {
+	case GreaterThan:
+		if compareType == Integer {
 			c.output.WriteString(fmt.Sprintf("IGRT %s %s %s\n", result, lhs.Code, rhs.Code))
-		} else if compareType == parser.Float {
+		} else if compareType == Float {
 			c.output.WriteString(fmt.Sprintf("RGRT %s %s %s\n", result, lhs.Code, rhs.Code))
 		}
 
-	case parser.LessThan:
-		if compareType == parser.Integer {
+	case LessThan:
+		if compareType == Integer {
 			c.output.WriteString(fmt.Sprintf("ILSS %s %s %s\n", result, lhs.Code, rhs.Code))
-		} else if compareType == parser.Float {
+		} else if compareType == Float {
 			c.output.WriteString(fmt.Sprintf("RLSS %s %s %s\n", result, lhs.Code, rhs.Code))
 		}
 	}
@@ -556,7 +556,7 @@ func (c *CodeGenerator) getNewLabel() string {
 	return fmt.Sprintf("@%d", c.labelIndex)
 }
 
-func (c *CodeGenerator) codegenCastExpression(exp *Expression, targetType parser.DataType) *Expression {
+func (c *CodeGenerator) codegenCastExpression(exp *Expression, targetType DataType) *Expression {
 	if exp.Type == targetType {
 		return exp
 	}
@@ -567,9 +567,9 @@ func (c *CodeGenerator) codegenCastExpression(exp *Expression, targetType parser
 	}
 
 	switch targetType {
-	case parser.Integer:
+	case Integer:
 		c.output.WriteString(fmt.Sprintf("RTOI %s %s\n", result.Code, exp.Code))
-	case parser.Float:
+	case Float:
 		c.output.WriteString(fmt.Sprintf("ITOR %s %s\n", result.Code, exp.Code))
 	default:
 		panic("Invalid type!")
@@ -578,14 +578,14 @@ func (c *CodeGenerator) codegenCastExpression(exp *Expression, targetType parser
 	return result
 }
 
-func calculateExpressionType(types ...parser.DataType) parser.DataType {
+func calculateExpressionType(types ...DataType) DataType {
 	for _, t := range types {
-		if t == parser.Float {
-			return parser.Float
+		if t == Float {
+			return Float
 		}
 	}
 
-	return parser.Integer
+	return Integer
 }
 
 // RemoveLabels removes any labels generated by this module.
