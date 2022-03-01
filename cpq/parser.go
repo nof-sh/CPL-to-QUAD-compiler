@@ -1,4 +1,4 @@
-package parser
+package main
 
 import (
 	"fmt"
@@ -15,12 +15,12 @@ import (
 // Parser represents a CPL parser.
 type Parser struct {
 	Errors    []ParseError
-	scanner   *lexer.Scanner
-	lookahead lexer.Token
+	scanner   *Scanner
+	lookahead Token
 }
 
 // NewParser returns a new instance of Parser.
-func NewParser(scanner *lexer.Scanner) *Parser {
+func NewParser(scanner *Scanner) *Parser {
 	return &Parser{
 		Errors:    []ParseError{},
 		scanner:   scanner,

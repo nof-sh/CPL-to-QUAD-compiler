@@ -1,12 +1,6 @@
-package cpq
+package main
 
 import "fmt"
-
-//import (
-//	"fmt"
-
-//	"github.com/alongubkin/cpl-compiler/pkg/lexer"
-//)
 
 // Error represents an error that occurred during code generation.
 type Error struct {

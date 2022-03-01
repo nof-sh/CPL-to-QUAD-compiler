@@ -1,6 +1,4 @@
-package cpq
-
-//import "github.com/alongubkin/cpl-compiler/pkg/lexer"
+package main
 
 //import "util"
 //"token"
@@ -46,14 +44,14 @@ type Node interface {
 type Program struct {
 	Declarations    []Declaration
 	StatementsBlock *StatementsBlock
-	Position        lexer.Position
+	Position        Position
 }
 
 // Declaration of one or more variables.
 type Declaration struct {
 	Names    []string
 	Type     DataType
-	Position lexer.Position
+	Position Position
 }
 
 // Statement represents a single command in CPL.
@@ -72,21 +70,21 @@ type AssignmentStatement struct {
 	// If the assignment doesn't contain static_cast<>, then CastType will be Unknown.
 	// Otherwise, CastType will contain the type to cast to.
 	CastType DataType
-	Position lexer.Position
+	Position Position
 }
 
 // InputStatement represents a command for retrieving user input to a variable.
 // e.g: input(a);
 type InputStatement struct {
 	Variable string
-	Position lexer.Position
+	Position Position
 }
 
 // OutputStatement represents a command for printing an expression.
 // e.g: output(x + y);
 type OutputStatement struct {
 	Value    Expression
-	Position lexer.Position
+	Position Position
 }
 
 // IfStatement represents a conditional command. In CPL, if statements must contain an else clause!
@@ -95,7 +93,7 @@ type IfStatement struct {
 	Condition  BooleanExpression
 	IfBranch   Statement
 	ElseBranch Statement
-	Position   lexer.Position
+	Position   Position
 }
 
 // WhileStatement is a control flow statement that allows code to be executed
@@ -103,7 +101,7 @@ type IfStatement struct {
 type WhileStatement struct {
 	Condition BooleanExpression
 	Body      Statement
-	Position  lexer.Position
+	Position  Position
 }
 
 // SwitchStatement is a type of selection control mechanism used to allow the value of
@@ -112,27 +110,27 @@ type SwitchStatement struct {
 	Expression  Expression
 	Cases       []SwitchCase
 	DefaultCase []Statement
-	Position    lexer.Position
+	Position    Position
 }
 
 // SwitchCase represents a flow for a specific value in a switch statement.
 type SwitchCase struct {
 	Value      int64
 	Statements []Statement
-	Position   lexer.Position
+	Position   Position
 }
 
 // BreakStatement represents a statement that exits from a switch case
 // or a while loop.
 type BreakStatement struct {
-	Position lexer.Position
+	Position Position
 }
 
 // StatementsBlock represents a block of sentences, e.g { s1; s2; s3; }.
 // It is itself a statement.
 type StatementsBlock struct {
 	Statements []Statement
-	Position   lexer.Position
+	Position   Position
 }
 
 // Expression is a combination of numbers, variables and operators that
@@ -156,19 +154,19 @@ type BooleanExpression interface {
 // VariableExpression is an expression that contains a single variable.
 type VariableExpression struct {
 	Variable string
-	Position lexer.Position
+	Position Position
 }
 
 // IntLiteral is an expression that contains a single constant integer number.
 type IntLiteral struct {
 	Value    int64
-	Position lexer.Position
+	Position Position
 }
 
 // FloatLiteral is an expression that contains a single constant integer number.
 type FloatLiteral struct {
 	Value    float64
-	Position lexer.Position
+	Position Position
 }
 
 // ArithmeticExpression is an expression that contains a +, -, *, / operator.
@@ -176,27 +174,27 @@ type ArithmeticExpression struct {
 	LHS      Expression
 	Operator Operator
 	RHS      Expression
-	Position lexer.Position
+	Position Position
 }
 
 // OrBooleanExpression is a boolean expression that has an OR operator.
 type OrBooleanExpression struct {
 	LHS      BooleanExpression
 	RHS      BooleanExpression
-	Position lexer.Position
+	Position Position
 }
 
 // AndBooleanExpression is a boolean expression that has an AND operator.
 type AndBooleanExpression struct {
 	LHS      BooleanExpression
 	RHS      BooleanExpression
-	Position lexer.Position
+	Position Position
 }
 
 // NotBooleanExpression is a boolean expression that has a NOT operator.
 type NotBooleanExpression struct {
 	Value    BooleanExpression
-	Position lexer.Position
+	Position Position
 }
 
 // CompareBooleanExpression is a boolean expression that compares between two expressions,
@@ -205,7 +203,7 @@ type CompareBooleanExpression struct {
 	LHS      Expression
 	Operator Operator
 	RHS      Expression
-	Position lexer.Position
+	Position Position
 }
 
 func (*Program) node()                  {}

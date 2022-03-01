@@ -1,4 +1,4 @@
-package cpq
+package main
 
 import (
 	"bufio"

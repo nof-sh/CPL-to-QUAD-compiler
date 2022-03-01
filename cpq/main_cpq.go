@@ -40,7 +40,7 @@ func main() {
 	}
 
 	// Lex & Parse
-	ast, parseErrors := cpq.Parse(string(code))
+	ast, parseErrors := parser.Parse(string(code))
 	for _, err := range parseErrors {
 		fmt.Fprintf(os.Stderr, "ParseError: %s\n", err.Error())
 	}
