@@ -606,10 +606,9 @@ func RemoveLabels(quad string) string {
 	return quad
 }
 
-var Signature = "CPL to Quad compiler by Nof Shabtay."
-
 func main() {
-	fmt.Fprintln(os.Stderr, Signature)
+	var Name = "CPL to Quad compiler by Nof Shabtay."
+	fmt.Fprintln(os.Stderr, Name)
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "USAGE: ./cpq <input-file>")
 		return
@@ -638,6 +637,6 @@ func main() {
 	if len(parseErrors) == 0 && len(codegenErrors) == 0 {
 		// Write QUAD file
 		outfile := infile[0:len(infile)-3] + ".qud"
-		ioutil.WriteFile(outfile, []byte(RemoveLabels(output)+"\n"+Signature), 0644)
+		ioutil.WriteFile(outfile, []byte(RemoveLabels(output)+"\n"+Name), 0644)
 	}
 }
