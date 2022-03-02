@@ -14,7 +14,7 @@ import (
 )
 
 type CodeGenerator struct {
-	Errors         []Error
+	Errors         []ErrorType
 	output         *bufio.Writer
 	Variables      map[string]DataType
 	temporaryIndex int
@@ -30,7 +30,7 @@ type Expression struct {
 // NewCodeGenerator returns a new instance of CodeGenerator.
 func NewCodeGenerator(output io.Writer) *CodeGenerator {
 	return &CodeGenerator{
-		Errors:         []Error{},
+		Errors:         []ErrorType{},
 		output:         bufio.NewWriterSize(output, 1),
 		Variables:      map[string]DataType{},
 		temporaryIndex: 0,
@@ -40,7 +40,7 @@ func NewCodeGenerator(output io.Writer) *CodeGenerator {
 }
 
 // Codegen generates code to an output file
-func Codegen(program *Program) (string, []Error) {
+func Codegen(program *Program) (string, []ErrorType) {
 	buf := new(bytes.Buffer)
 
 	c := NewCodeGenerator(buf)
@@ -55,7 +55,7 @@ func (c *CodeGenerator) CodegenProgram(node *Program) {
 	for _, declaration := range node.Declarations {
 		for _, name := range declaration.Names {
 			if _, exists := c.Variables[name]; exists {
-				c.Errors = append(c.Errors, Error{
+				c.Errors = append(c.Errors, ErrorType{
 					Message: fmt.Sprintf("variable %s already defined", name),
 					Pos:     declaration.Position,
 				})
@@ -94,11 +94,11 @@ func (c *CodeGenerator) CodegenStatement(node Statement) {
 
 // CodegenAssignmentStatement generates code for assignment statements.
 func (c *CodeGenerator) CodegenAssignmentStatement(node *Assignment) {
-	exp := c.CodegenExpression(node.Value)
+	exp := c.CodegenExpression(node)
 
 	// Make sure the variable is defined.
 	if _, exists := c.Variables[node.Variable]; !exists {
-		c.Errors = append(c.Errors, Error{
+		c.Errors = append(c.Errors, ErrorType{
 			Message: fmt.Sprintf("undefined variable %s", node.Variable),
 			Pos:     node.Position,
 		})
@@ -116,7 +116,7 @@ func (c *CodeGenerator) CodegenAssignmentStatement(node *Assignment) {
 
 	// Make sure the expression's type is okay
 	if c.Variables[node.Variable] == Integer && exp.Type == Float {
-		c.Errors = append(c.Errors, Error{
+		c.Errors = append(c.Errors, ErrorType{
 			Message: fmt.Sprintf("cannot assign float value to int variable %s", node.Variable),
 			Pos:     node.Position,
 		})
@@ -140,7 +140,7 @@ func (c *CodeGenerator) CodegenAssignmentStatement(node *Assignment) {
 func (c *CodeGenerator) CodegenInputStatement(node *Input) {
 	// Make sure the variable is defined.
 	if _, exists := c.Variables[node.Variable]; !exists {
-		c.Errors = append(c.Errors, Error{
+		c.Errors = append(c.Errors, ErrorType{
 			Message: fmt.Sprintf("undefined variable %s", node.Variable),
 			Pos:     node.Position,
 		})
@@ -156,7 +156,7 @@ func (c *CodeGenerator) CodegenInputStatement(node *Input) {
 
 // CodegenOutputStatement generates code for output statements.
 func (c *CodeGenerator) CodegenOutputStatement(node *Output) {
-	exp := c.CodegenExpression(node.Value)
+	exp := c.CodegenExpression(node)
 	if exp == nil {
 		return
 	}
@@ -217,13 +217,13 @@ func (c *CodeGenerator) CodegenWhileStatement(node *WhileStatement) {
 // CodegenSwitchStatement generates code for switch statements.
 func (c *CodeGenerator) CodegenSwitchStatement(node *Switch) {
 	// Evaluate expression
-	exp := c.CodegenExpression(node.Expression)
+	exp := c.CodegenExpression(node)
 	if exp == nil {
 		return
 	}
 
 	if exp.Type != Integer {
-		c.Errors = append(c.Errors, Error{
+		c.Errors = append(c.Errors, ErrorType{
 			Message: fmt.Sprintf("switch expression must be an integer"),
 			Pos:     node.Position,
 		})
@@ -269,7 +269,7 @@ func (c *CodeGenerator) CodegenSwitchStatement(node *Switch) {
 // CodegenBreakStatement generates code for break statements.
 func (c *CodeGenerator) CodegenBreakStatement(node *Break) {
 	if len(c.breakStack) == 0 {
-		c.Errors = append(c.Errors, Error{
+		c.Errors = append(c.Errors, ErrorType{
 			Message: fmt.Sprintf("break statement must be inside a while loop or a switch case"),
 			Pos:     node.Position,
 		})
@@ -287,23 +287,25 @@ func (c *CodeGenerator) CodegenStatementsBlock(node *Block) {
 }
 
 // CodegenExpression generates code for a CPL expression.
-func (c *CodeGenerator) CodegenExpression(node Expression) *Expression {
-	switch node.Type {
-	case Unknown:
-		return c.CodegenArithmeticExpression(node)
-	case Integer:
-		return c.CodegenIntLiteral(node)
-	case Float:
-		return c.CodegenFloatLiteral(node)
+func (c *CodeGenerator) CodegenExpression(node Node) *Expression {
+	switch temp := node.(type) {
+	case *Arithmetic:
+		return c.CodegenArithmeticExpression(temp)
+	case *Variable:
+		return c.CodegenVariableExpression(temp)
+	case *FloatNum:
+		return c.CodegenFloatLiteral(temp)
+	case *IntNum:
+		return c.CodegenIntLiteral(temp)
 	}
 
 	return nil
 }
 
 // CodegenArithmeticExpression generates code for an arithmetic expression.
-func (c *CodeGenerator) CodegenArithmeticExpression(node *Arithmetic) *Expression {
-	lhs := c.CodegenExpression(node.LHS)
-	rhs := c.CodegenExpression(node.RHS)
+func (c *CodeGenerator) CodegenArithmeticExpression(aryth *Arithmetic) *Expression {
+	lhs := c.CodegenExpression(aryth)
+	rhs := c.CodegenExpression(aryth)
 	if lhs == nil || rhs == nil {
 		return nil
 	}
@@ -319,7 +321,7 @@ func (c *CodeGenerator) CodegenArithmeticExpression(node *Arithmetic) *Expressio
 		rhs = c.codegenCastExpression(rhs, Float)
 	}
 
-	switch node.Operator {
+	switch aryth.Operator {
 	case Add:
 		if result.Type == Integer {
 			c.output.WriteString(fmt.Sprintf("IADD %s %s %s\n", result.Code, lhs.Code, rhs.Code))
@@ -356,7 +358,7 @@ func (c *CodeGenerator) CodegenArithmeticExpression(node *Arithmetic) *Expressio
 func (c *CodeGenerator) CodegenVariableExpression(node *Variable) *Expression {
 	// Make sure the variable is defined.
 	if _, exists := c.Variables[node.Variable]; !exists {
-		c.Errors = append(c.Errors, Error{
+		c.Errors = append(c.Errors, ErrorType{
 			Message: fmt.Sprintf("undefined variable %s", node.Variable),
 			Pos:     node.Position,
 		})
@@ -494,8 +496,8 @@ func (c *CodeGenerator) CodegenCompareBooleanExpression(node *Compare) string {
 		})
 	}
 
-	lhs := c.CodegenExpression(node.LHS)
-	rhs := c.CodegenExpression(node.RHS)
+	lhs := c.CodegenExpression(node)
+	rhs := c.CodegenExpression(node)
 	if lhs == nil || rhs == nil {
 		return ""
 	}
@@ -632,13 +634,13 @@ func main() {
 	// Lex & Parse
 	ast, parseErrors := Parse(string(code))
 	for _, err := range parseErrors {
-		fmt.Fprintf(os.Stderr, "ParseError: %s\n", err.Error())
+		fmt.Fprintf(os.Stderr, "ParseError: %s\n", err.Message)
 	}
 
 	// Codegen
 	output, codegenErrors := Codegen(ast)
 	for _, err := range codegenErrors {
-		fmt.Fprintf(os.Stderr, "CodegenError: %s\n", err.Error())
+		fmt.Fprintf(os.Stderr, "CodegenError: %s\n", err.Message)
 	}
 
 	// Generate the filename for the output QUAD file
