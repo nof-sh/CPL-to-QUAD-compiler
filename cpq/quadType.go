@@ -36,6 +36,24 @@ type Node interface {
 	node()
 }
 
+// Expression is a combination of numbers, variables and operators that
+// can be evaluated to a value.
+type NodeExpression interface {
+	Node
+	// expression is unexported to ensure implementations of Expression
+	// can only originate in this package.
+	expression()
+}
+
+// BooleanExpression can be evaulated to a boolean value (true or false).
+// NOTE: In CPL, BooleanExpression isn't an Expression! These are two distinct types.
+type NodeBoolean interface {
+	Node
+	// boolexpr is unexported to ensure implementations of Expression
+	// can only originate in this package.
+	boolexpr()
+}
+
 // Program represents the root node of a CPL program.
 type Program struct {
 	Declarations    []Declaration

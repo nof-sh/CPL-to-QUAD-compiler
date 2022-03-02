@@ -14,16 +14,40 @@ type ErrorType struct {
 	Pos      Position
 }
 
-// Error returns the string representation of the error.
-func (e *Error) Error() string {
-	return fmt.Sprintf("%s at line %d, char %d", e.Message, e.Pos.Line+1, e.Pos.Column+1)
-}
-
 // Parser represents a CPL parser.
 type Parser struct {
 	Errors    []ErrorType
 	scanner   *Scanner
 	lookahead Token
+}
+
+// Error returns the string representation of the error.
+func (e *ErrorType) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("%s at line %d, char %d", e.Message, e.Pos.Line+1, e.Pos.Column+1)
+	}
+	return fmt.Sprintf("found %s, expected %s at line %d, char %d", e.Found,
+		strings.Join(e.Expected, ", "), e.Pos.Line+1, e.Pos.Column+1)
+}
+
+// newParseError returns a new instance of ParseError.
+func newError(found string, expected []string, pos Position) ErrorType {
+	return ErrorType{
+		Message:  "",
+		Found:    found,
+		Expected: expected,
+		Pos:      pos,
+	}
+}
+
+func (p *Parser) addError(e ErrorType) {
+	for _, err := range p.Errors {
+		if err.Pos == e.Pos {
+			return
+		}
+	}
+
+	p.Errors = append(p.Errors, e)
 }
 
 // NewParser returns a new instance of Parser.
@@ -79,7 +103,7 @@ func (p *Parser) ParseProgram() *Program {
 
 	// Make sure there's an EOF at the end of the file.
 	if token, ok := p.match(EOF); !ok {
-		p.addError(Error(token.Lexeme, []string{"EOF"}, program.Position))
+		p.addError(newError(token.Lexeme, []string{"EOF"}, program.Position))
 	}
 
 	return program
@@ -103,7 +127,7 @@ func (p *Parser) ParseDeclaration() *Declaration {
 	declaration.Names = p.ParseIDList()
 
 	if token, ok := p.match(COLON); !ok {
-		p.addError(Error(token.Lexeme, []string{":"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{":"}, token.Position))
 	}
 
 	declaration.Type = p.ParseType()
@@ -112,7 +136,7 @@ func (p *Parser) ParseDeclaration() *Declaration {
 	}
 
 	if token, ok := p.match(SEMICOLON); !ok {
-		p.addError(Error(token.Lexeme, []string{";"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{";"}, token.Position))
 	}
 
 	return declaration
@@ -124,7 +148,7 @@ func (p *Parser) ParseType() DataType {
 	token, ok := p.match(INT, FLOAT)
 	if !ok {
 		p.skip()
-		p.addError(Error(token.Lexeme, []string{"int", "float"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"int", "float"}, token.Position))
 		return Unknown
 	}
 
@@ -148,7 +172,7 @@ func (p *Parser) ParseIDList() []string {
 	if token, ok := p.match(ID); ok {
 		names = append(names, token.Lexeme)
 	} else {
-		p.addError(Error(token.Lexeme, []string{"ID"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"ID"}, token.Position))
 	}
 
 	// Parse other names if exist
@@ -158,7 +182,7 @@ func (p *Parser) ParseIDList() []string {
 		if token, ok := p.match(ID); ok {
 			names = append(names, token.Lexeme)
 		} else {
-			p.addError(Error(token.Lexeme, []string{"ID"}, token.Position))
+			p.addError(newError(token.Lexeme, []string{"ID"}, token.Position))
 		}
 	}
 
@@ -202,19 +226,19 @@ func (p *Parser) ParseStatement() Statement {
 // 	assignment_stmt -> ID '=' assignment_stmt'
 // 	assignment_stmt' -> expression ';'
 //   	| STATIC_CAST '(' type ')' '(' expression ')' ';
-func (p *Parser) ParseAssignmentStatement() *AssignmentStatement {
-	result := &AssignmentStatement{Position: p.lookahead.Position}
+func (p *Parser) ParseAssignmentStatement() *Assignment {
+	result := &Assignment{Position: p.lookahead.Position}
 
 	// ID
 	if token, ok := p.match(ID); ok {
 		result.Variable = token.Lexeme
 	} else {
-		p.addError(Error(token.Lexeme, []string{"ID"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"ID"}, token.Position))
 	}
 
 	// =
 	if token, ok := p.match(EQUALS); !ok {
-		p.addError(Error(token.Lexeme, []string{"ID"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"ID"}, token.Position))
 	}
 
 	// Parse static_cast(type) if exists
@@ -223,23 +247,20 @@ func (p *Parser) ParseAssignmentStatement() *AssignmentStatement {
 
 		// (
 		if token, ok := p.match(LPAREN); !ok {
-			p.addError(Error(token.Lexeme, []string{"("}, token.Position))
+			p.addError(newError(token.Lexeme, []string{"("}, token.Position))
 		}
 
 		result.CastType = p.ParseType()
 
 		// )
 		if token, ok := p.match(RPAREN); !ok {
-			p.addError(Error(token.Lexeme, []string{")"}, token.Position))
+			p.addError(newError(token.Lexeme, []string{")"}, token.Position))
 		}
 	}
 
-	// Parse expression
-	result.Value = p.ParseExpression()
-
 	// ;
 	if token, ok := p.match(SEMICOLON); !ok {
-		p.addError(Error(token.Lexeme, []string{";"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{";"}, token.Position))
 	}
 
 	return result
@@ -248,33 +269,33 @@ func (p *Parser) ParseAssignmentStatement() *AssignmentStatement {
 // ParseInputStatement parses a CPL input statement, which can be used for retrieving
 // user input.
 // 	input_stmt -> INPUT '(' ID ')' ';'
-func (p *Parser) ParseInputStatement() *InputStatement {
+func (p *Parser) ParseInputStatement() *Input {
 	if _, ok := p.match(INPUT); !ok {
 		return nil
 	}
 
-	result := &InputStatement{Position: p.lookahead.Position}
+	result := &Input{Position: p.lookahead.Position}
 
 	// (
 	if token, ok := p.match(LPAREN); !ok {
-		p.addError(Error(token.Lexeme, []string{"("}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"("}, token.Position))
 	}
 
 	// ID
 	if token, ok := p.match(ID); ok {
 		result.Variable = token.Lexeme
 	} else {
-		p.addError(Error(token.Lexeme, []string{"ID"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"ID"}, token.Position))
 	}
 
 	// )
 	if token, ok := p.match(RPAREN); !ok {
-		p.addError(Error(token.Lexeme, []string{")"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{")"}, token.Position))
 	}
 
 	// ;
 	if token, ok := p.match(SEMICOLON); !ok {
-		p.addError(Error(token.Lexeme, []string{";"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{";"}, token.Position))
 	}
 
 	return result
@@ -283,28 +304,26 @@ func (p *Parser) ParseInputStatement() *InputStatement {
 // ParseOutputStatement parses a CPL output statement, which can be used for printing
 // expressions.
 // 	output_stmt -> OUTPUT '(' expression ')' ';'
-func (p *Parser) ParseOutputStatement() *OutputStatement {
+func (p *Parser) ParseOutputStatement() *Output {
 	if _, ok := p.match(OUTPUT); !ok {
 		return nil
 	}
 
-	result := &OutputStatement{Position: p.lookahead.Position}
+	result := &Output{Position: p.lookahead.Position}
 
 	// (
 	if token, ok := p.match(LPAREN); !ok {
-		p.addError(Error(token.Lexeme, []string{"("}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"("}, token.Position))
 	}
-
-	result.Value = p.ParseExpression()
 
 	// )
 	if token, ok := p.match(RPAREN); !ok {
-		p.addError(Error(token.Lexeme, []string{")"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{")"}, token.Position))
 	}
 
 	// ;
 	if token, ok := p.match(SEMICOLON); !ok {
-		p.addError(Error(token.Lexeme, []string{";"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{";"}, token.Position))
 	}
 
 	return result
@@ -321,14 +340,14 @@ func (p *Parser) ParseIfStatement() *IfStatement {
 
 	// (
 	if token, ok := p.match(LPAREN); !ok {
-		p.addError(Error(token.Lexeme, []string{"("}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"("}, token.Position))
 	}
 
 	result.Condition = p.ParseBooleanExpression()
 
 	// )
 	if token, ok := p.match(RPAREN); !ok {
-		p.addError(Error(token.Lexeme, []string{")"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{")"}, token.Position))
 	}
 
 	// stmt
@@ -336,7 +355,7 @@ func (p *Parser) ParseIfStatement() *IfStatement {
 
 	// ELSE
 	if token, ok := p.match(ELSE); !ok {
-		p.addError(Error(token.Lexeme, []string{"else"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"else"}, token.Position))
 		return result
 	}
 
@@ -357,14 +376,14 @@ func (p *Parser) ParseWhileStatement() *WhileStatement {
 
 	// (
 	if token, ok := p.match(LPAREN); !ok {
-		p.addError(Error(token.Lexeme, []string{"("}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"("}, token.Position))
 	}
 
 	result.Condition = p.ParseBooleanExpression()
 
 	// )
 	if token, ok := p.match(RPAREN); !ok {
-		p.addError(Error(token.Lexeme, []string{")"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{")"}, token.Position))
 	}
 
 	// stmt
@@ -374,47 +393,45 @@ func (p *Parser) ParseWhileStatement() *WhileStatement {
 
 // ParseSwitchStatement parses a CPL switch statement.
 // 	switch_stmt -> SWITCH '(' expression ')' '{' caselist DEFAULT ':' stmtlist '}'
-func (p *Parser) ParseSwitchStatement() *SwitchStatement {
+func (p *Parser) ParseSwitchStatement() *Switch {
 	if _, ok := p.match(SWITCH); !ok {
 		return nil
 	}
 
-	result := &SwitchStatement{Position: p.lookahead.Position}
+	result := &Switch{Position: p.lookahead.Position}
 
 	// (
 	if token, ok := p.match(LPAREN); !ok {
-		p.addError(Error(token.Lexeme, []string{"("}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"("}, token.Position))
 	}
-
-	result.Expression = p.ParseExpression()
 
 	// )
 	if token, ok := p.match(RPAREN); !ok {
-		p.addError(Error(token.Lexeme, []string{")"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{")"}, token.Position))
 	}
 
 	// {
 	if token, ok := p.match(LBRACKET); !ok {
-		p.addError(Error(token.Lexeme, []string{"{"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"{"}, token.Position))
 	}
 
 	result.Cases = p.ParseSwitchCases()
 
 	// DEFAULT
 	if token, ok := p.match(DEFAULT); !ok {
-		p.addError(Error(token.Lexeme, []string{"DEFAULT"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"DEFAULT"}, token.Position))
 	}
 
 	// :
 	if token, ok := p.match(COLON); !ok {
-		p.addError(Error(token.Lexeme, []string{":"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{":"}, token.Position))
 	}
 
 	result.DefaultCase = p.ParseStatements()
 
 	// }
 	if token, ok := p.match(RBRACKET); !ok {
-		p.addError(Error(token.Lexeme, []string{"}"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"}"}, token.Position))
 	}
 
 	return result
@@ -432,17 +449,17 @@ func (p *Parser) ParseSwitchCases() []SwitchCase {
 		if token, ok := p.match(NUM); ok {
 			value, err := strconv.ParseInt(token.Lexeme, 10, 64)
 			if err != nil {
-				p.addError(Error{Message: fmt.Sprintf("%s is not an int", token.Lexeme)})
+				p.addError(ErrorType{Message: fmt.Sprintf("%s is not an int", token.Lexeme)})
 			}
 
 			item.Value = value
 		} else {
-			p.addError(Error(token.Lexeme, []string{"NUM"}, token.Position))
+			p.addError(newError(token.Lexeme, []string{"NUM"}, token.Position))
 		}
 
 		// :
 		if token, ok := p.match(COLON); !ok {
-			p.addError(Error(token.Lexeme, []string{":"}, token.Position))
+			p.addError(newError(token.Lexeme, []string{":"}, token.Position))
 		}
 
 		item.Statements = p.ParseStatements()
@@ -455,15 +472,15 @@ func (p *Parser) ParseSwitchCases() []SwitchCase {
 
 // ParseBreakStatement parses a CPL break statement.
 // 	break_stmt -> BREAK ';'
-func (p *Parser) ParseBreakStatement() *BreakStatement {
-	result := &BreakStatement{Position: p.lookahead.Position}
+func (p *Parser) ParseBreakStatement() *Break {
+	result := &Break{Position: p.lookahead.Position}
 	if _, ok := p.match(BREAK); !ok {
 		return nil
 	}
 
 	// ;
 	if token, ok := p.match(SEMICOLON); !ok {
-		p.addError(Error(token.Lexeme, []string{";"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{";"}, token.Position))
 	}
 
 	return result
@@ -471,13 +488,12 @@ func (p *Parser) ParseBreakStatement() *BreakStatement {
 
 // ParseStatementsBlock parses a block of statements.
 //	stmt_block -> '{' stmtlist '}'
-func (p *Parser) ParseStatementsBlock() *StatementsBlock {
+func (p *Parser) ParseStatementsBlock() *Block {
 	// Parse {
 	startBlock := false
 	startBlockToken, startBlock := p.match(LBRACKET)
 	if !startBlock {
-		p.addError(Error(startBlockToken.Lexeme,
-			[]string{"{"}, startBlockToken.Position))
+		p.addError(newError(startBlockToken.Lexeme, []string{"{"}, startBlockToken.Position))
 	}
 
 	statements := p.ParseStatements()
@@ -485,10 +501,10 @@ func (p *Parser) ParseStatementsBlock() *StatementsBlock {
 	// Parse }
 	// Only show an error for the } if there was a {
 	if token, ok := p.match(RBRACKET); !ok && startBlock {
-		p.addError(Error(token.Lexeme, []string{"}"}, token.Position))
+		p.addError(newError(token.Lexeme, []string{"}"}, token.Position))
 	}
 
-	return &StatementsBlock{Position: startBlockToken.Position, Statements: statements}
+	return &Block{Position: startBlockToken.Position, Statements: statements}
 }
 
 // ParseStatements parses zero or more statements.
@@ -510,11 +526,11 @@ func (p *Parser) ParseStatements() []Statement {
 // ParseBooleanExpression parses expressions that might contain any boolean operator.
 // 	boolexpr -> boolterm boolexpr'
 // 	boolexpr' -> OR boolterm boolexpr | ε
-func (p *Parser) ParseBooleanExpression() BooleanExpression {
+func (p *Parser) ParseBooleanExpression() Boolean {
 	result := p.ParseBooleanTerm()
 	for p.lookahead.TokenType == OR {
 		token, _ := p.match(OR)
-		result = &OrBooleanExpression{
+		result = &Or{
 			Position: token.Position,
 			LHS:      result,
 			RHS:      p.ParseBooleanTerm(),
@@ -527,11 +543,11 @@ func (p *Parser) ParseBooleanExpression() BooleanExpression {
 // ParseBooleanTerm parses expressions that might contain AND operator.
 // 	boolterm -> boolfactor boolterm'
 // 	boolterm' -> AND boolfactor boolterm' | ε
-func (p *Parser) ParseBooleanTerm() BooleanExpression {
+func (p *Parser) ParseBooleanTerm() Boolean {
 	result := p.ParseBooleanFactor()
 	for p.lookahead.TokenType == AND {
 		token, _ := p.match(AND)
-		result = &AndBooleanExpression{
+		result = &And{
 			Position: token.Position,
 			LHS:      result,
 			RHS:      p.ParseBooleanFactor(),
@@ -544,143 +560,22 @@ func (p *Parser) ParseBooleanTerm() BooleanExpression {
 // ParseBooleanFactor parses a boolean expression with NOT operator or a relational operator.
 // 	boolfactor -> NOT '(' boolexpr ')'
 //		| expression RELOP expression
-func (p *Parser) ParseBooleanFactor() BooleanExpression {
+func (p *Parser) ParseBooleanFactor() Boolean {
 	position := p.lookahead.Position
-	switch p.lookahead.TokenType {
-	case NOT:
+	if p.lookahead.TokenType == NOT {
 		p.match(NOT)
-
 		if token, ok := p.match(LPAREN); !ok {
-			p.addError(Error(token.Lexeme, []string{"("}, token.Position))
-		}
+			p.addError(newError(token.Lexeme, []string{"("}, token.Position))
 
-		expr := p.ParseBooleanExpression()
+			expr := p.ParseBooleanExpression()
 
-		if token, ok := p.match(RPAREN); !ok {
-			p.addError(Error(token.Lexeme, []string{")"}, token.Position))
-		}
-
-		return &NotBooleanExpression{Position: position, Value: expr}
-
-	default:
-		lhs := p.ParseExpression()
-
-		var operator Operator
-		if token, ok := p.match(RELOP); ok {
-			switch token.Lexeme {
-			case "==":
-				operator = EqualTo
-			case "!=":
-				operator = NotEqualTo
-			case "<":
-				operator = LessThan
-			case ">":
-				operator = GreaterThan
-			case "<=":
-				operator = LessThenOrEqualTo
-			case ">=":
-				operator = GreaterThanOrEqualTo
-			}
-		} else {
-			p.addError(Error(token.Lexeme, []string{"==", "!=", "<", ">", "<=", ">="}, token.Position))
-		}
-
-		return &CompareBooleanExpression{
-			Position: position,
-			LHS:      lhs,
-			Operator: operator,
-			RHS:      p.ParseExpression(),
-		}
-	}
-}
-
-// ParseExpression parses expressions that might contain any arthimatic operator.
-// 	expression -> term expression'
-//  expression' -> ADDOP term expression' | ε
-func (p *Parser) ParseExpression() Expression {
-	result := p.ParseTerm()
-	if p.lookahead.TokenType == ADDOP {
-
-		switch token, _ := p.match(ADDOP); token.Lexeme {
-		case "+":
-			result.Type = 0
-		case "-":
-			result.Type = 1
-		}
-	}
-	return result
-}
-// ParseFactor parses a single variable, single constant number or (...some expr...).
-// 	factor -> '(' expression ')' | ID | NUM
-func (p *Parser) ParseFactor() (*Expression) {
-	switch p.lookahead.TokenType {
-	case LPAREN:
-		p.match(LPAREN)
-
-		expr := p.ParseExpression()
-
-		if token, ok := p.match(RPAREN); !ok {
-			p.addError(Error([]string{")"}, token.Position))
-		}
-
-		return expr
-
-	case ID:
-		token, _ := p.match(ID)
-		return &VariableExpression{Position: token.Position, Variable: token.Lexeme}
-
-	case NUM:
-		token, _ := p.match(NUM)
-
-		// If the number has a floating point (e.g 5.0), parse it as a float.
-		if strings.Contains(token.Lexeme, ".") {
-			value, err := strconv.ParseFloat(token.Lexeme, 64)
-			if err != nil {
-				p.addError(ParseError{Message: fmt.Sprintf("%s is not number", token.Lexeme)})
+			if token, ok := p.match(RPAREN); !ok {
+				p.addError(newError(token.Lexeme, []string{")"}, token.Position))
 			}
 
-			return &FloatLiteral{Position: token.Position, Value: value}
-		}
-
-		// Otherwise, parse it as an integer.
-		value, err := strconv.ParseInt(token.Lexeme, 10, 64)
-		if err != nil {
-			p.addError(ParseError{Message: fmt.Sprintf("%s is not number", token.Lexeme)})
-		}
-
-		return &IntLiteral{Position: token.Position, Value: value}
-
-	default:
-		p.addError(Error(p.lookahead.Lexeme, []string{"(", "ID", "NUM"},
-			p.lookahead.Position))
-		return nil
-	}
-}
-// ParseTerm parses expressions that might contain multipications or divisions.
-// 	term -> factor term'
-// 	term' -> MULOP factor term' | ε
-func (p *Parser) ParseTerm() Expression {
-	result := p.ParseFactor()
-	for p.lookahead.TokenType == MULOP {
-		position := p.lookahead.Position
-
-		var operator Operator
-		switch token, _ := p.match(MULOP); token.Lexeme {
-		case "*":
-			operator = Multiply
-		case "/":
-			operator = Divide
-		}
-
-	return result
-}
-
-func (p *Parser) addError(e ErrorType) {
-	for _, err := range p.Errors {
-		if err.Pos == e.Pos {
-			return
+			return &Not{Position: position, Value: expr}
 		}
 	}
-
-	p.Errors = append(p.Errors, e)
+	expr := p.ParseBooleanExpression()
+	return &Not{Position: position, Value: expr}
 }
