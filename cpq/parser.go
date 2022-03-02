@@ -77,7 +77,7 @@ func (p *Parser) ParseProgram() *Program {
 
 	// Make sure there's an EOF at the end of the file.
 	if token, ok := p.match(EOF); !ok {
-		p.addError(newParseError(token.Lexeme, []string{"EOF"}, token.Position))
+		p.addError(Error(token.Lexeme, []string{"EOF"}, program.Position))
 	}
 
 	return program
@@ -597,59 +597,20 @@ func (p *Parser) ParseBooleanFactor() BooleanExpression {
 //  expression' -> ADDOP term expression' | ε
 func (p *Parser) ParseExpression() Expression {
 	result := p.ParseTerm()
-	for p.lookahead.TokenType == ADDOP {
-		position := p.lookahead.Position
+	if p.lookahead.TokenType == ADDOP {
 
-		var operator Operator
 		switch token, _ := p.match(ADDOP); token.Lexeme {
 		case "+":
-			operator = Add
+			result.Type = 0
 		case "-":
-			operator = Subtract
-		}
-
-		rhs := p.ParseTerm()
-		result = &ArithmeticExpression{
-			Position: position,
-			LHS:      result,
-			RHS:      rhs,
-			Operator: operator,
+			result.Type = 1
 		}
 	}
-
 	return result
 }
-
-// ParseTerm parses expressions that might contain multipications or divisions.
-// 	term -> factor term'
-// 	term' -> MULOP factor term' | ε
-func (p *Parser) ParseTerm() Expression {
-	result := p.ParseFactor()
-	for p.lookahead.TokenType == MULOP {
-		position := p.lookahead.Position
-
-		var operator Operator
-		switch token, _ := p.match(MULOP); token.Lexeme {
-		case "*":
-			operator = Multiply
-		case "/":
-			operator = Divide
-		}
-
-		result = &ArithmeticExpression{
-			Position: position,
-			LHS:      result,
-			RHS:      p.ParseFactor(),
-			Operator: operator,
-		}
-	}
-
-	return result
-}
-
 // ParseFactor parses a single variable, single constant number or (...some expr...).
 // 	factor -> '(' expression ')' | ID | NUM
-func (p *Parser) ParseFactor() Expression {
+func (p *Parser) ParseFactor() (*Expression) {
 	switch p.lookahead.TokenType {
 	case LPAREN:
 		p.match(LPAREN)
@@ -657,7 +618,7 @@ func (p *Parser) ParseFactor() Expression {
 		expr := p.ParseExpression()
 
 		if token, ok := p.match(RPAREN); !ok {
-			p.addError(newParseError(token.Lexeme, []string{")"}, token.Position))
+			p.addError(Error([]string{")"}, token.Position))
 		}
 
 		return expr
@@ -693,8 +654,30 @@ func (p *Parser) ParseFactor() Expression {
 		return nil
 	}
 }
+// ParseTerm parses expressions that might contain multipications or divisions.
+// 	term -> factor term'
+// 	term' -> MULOP factor term' | ε
+func (p *Parser) ParseTerm() Expression {
+	result := p.ParseFactor()
+	for p.lookahead.TokenType == MULOP {
+		position := p.lookahead.Position
 
-func (p *Parser) addError(e ParseError) {
+		var operator Operator
+		switch token, _ := p.match(MULOP); token.Lexeme {
+		case "*":
+			operator = Multiply
+		case "/":
+			operator = Divide
+		}
+
+	return result
+}
+
+
+
+
+
+func (p *Parser) addError(e Error) {
 	for _, err := range p.Errors {
 		if err.Pos == e.Pos {
 			return

@@ -73,27 +73,27 @@ func (c *CodeGenerator) CodegenProgram(node *Program) {
 // CodegenStatement generates code for a CPL statement.
 func (c *CodeGenerator) CodegenStatement(node Statement) {
 	switch s := node.(type) {
-	case *AssignmentStatement:
+	case *Assignment:
 		c.CodegenAssignmentStatement(s)
-	case *InputStatement:
+	case *Input:
 		c.CodegenInputStatement(s)
-	case *OutputStatement:
+	case *Output:
 		c.CodegenOutputStatement(s)
 	case *IfStatement:
 		c.CodegenIfStatement(s)
 	case *WhileStatement:
 		c.CodegenWhileStatement(s)
-	case *SwitchStatement:
+	case *Switch:
 		c.CodegenSwitchStatement(s)
-	case *BreakStatement:
+	case *Break:
 		c.CodegenBreakStatement(s)
-	case *StatementsBlock:
+	case *Block:
 		c.CodegenStatementsBlock(s)
 	}
 }
 
 // CodegenAssignmentStatement generates code for assignment statements.
-func (c *CodeGenerator) CodegenAssignmentStatement(node *AssignmentStatement) {
+func (c *CodeGenerator) CodegenAssignmentStatement(node *Assignment) {
 	exp := c.CodegenExpression(node.Value)
 
 	// Make sure the variable is defined.
@@ -137,7 +137,7 @@ func (c *CodeGenerator) CodegenAssignmentStatement(node *AssignmentStatement) {
 }
 
 // CodegenInputStatement generates code for input statements.
-func (c *CodeGenerator) CodegenInputStatement(node *InputStatement) {
+func (c *CodeGenerator) CodegenInputStatement(node *Input) {
 	// Make sure the variable is defined.
 	if _, exists := c.Variables[node.Variable]; !exists {
 		c.Errors = append(c.Errors, Error{
@@ -155,7 +155,7 @@ func (c *CodeGenerator) CodegenInputStatement(node *InputStatement) {
 }
 
 // CodegenOutputStatement generates code for output statements.
-func (c *CodeGenerator) CodegenOutputStatement(node *OutputStatement) {
+func (c *CodeGenerator) CodegenOutputStatement(node *Output) {
 	exp := c.CodegenExpression(node.Value)
 	if exp == nil {
 		return
@@ -215,7 +215,7 @@ func (c *CodeGenerator) CodegenWhileStatement(node *WhileStatement) {
 }
 
 // CodegenSwitchStatement generates code for switch statements.
-func (c *CodeGenerator) CodegenSwitchStatement(node *SwitchStatement) {
+func (c *CodeGenerator) CodegenSwitchStatement(node *Switch) {
 	// Evaluate expression
 	exp := c.CodegenExpression(node.Expression)
 	if exp == nil {
@@ -248,14 +248,14 @@ func (c *CodeGenerator) CodegenSwitchStatement(node *SwitchStatement) {
 	// Generate labels and code for each case
 	for i, switchCase := range node.Cases {
 		c.output.WriteString(fmt.Sprintf("%s:\n", caseLabels[i]))
-		c.CodegenStatement(&StatementsBlock{
+		c.CodegenStatement(&Block{
 			Statements: switchCase.Statements,
 		})
 	}
 
 	// Default case
 	c.output.WriteString(fmt.Sprintf("%s:\n", defaultLabel))
-	c.CodegenStatement(&StatementsBlock{
+	c.CodegenStatement(&Block{
 		Statements: node.DefaultCase,
 	})
 
@@ -267,7 +267,7 @@ func (c *CodeGenerator) CodegenSwitchStatement(node *SwitchStatement) {
 }
 
 // CodegenBreakStatement generates code for break statements.
-func (c *CodeGenerator) CodegenBreakStatement(node *BreakStatement) {
+func (c *CodeGenerator) CodegenBreakStatement(node *Break) {
 	if len(c.breakStack) == 0 {
 		c.Errors = append(c.Errors, Error{
 			Message: fmt.Sprintf("break statement must be inside a while loop or a switch case"),
@@ -280,7 +280,7 @@ func (c *CodeGenerator) CodegenBreakStatement(node *BreakStatement) {
 }
 
 // CodegenStatementsBlock generates code for a statements block.
-func (c *CodeGenerator) CodegenStatementsBlock(node *StatementsBlock) {
+func (c *CodeGenerator) CodegenStatementsBlock(node *Block) {
 	for _, statement := range node.Statements {
 		c.CodegenStatement(statement)
 	}
@@ -288,14 +288,12 @@ func (c *CodeGenerator) CodegenStatementsBlock(node *StatementsBlock) {
 
 // CodegenExpression generates code for a CPL expression.
 func (c *CodeGenerator) CodegenExpression(node Expression) *Expression {
-	switch node {
-	case ArithmeticExpression:
+	switch node.Type {
+	case Unknown:
 		return c.CodegenArithmeticExpression(node)
-	case VariableExpression:
-		return c.CodegenVariableExpression(node)
-	case IntLiteral:
+	case Integer:
 		return c.CodegenIntLiteral(node)
-	case FloatLiteral:
+	case Float:
 		return c.CodegenFloatLiteral(node)
 	}
 
@@ -303,7 +301,7 @@ func (c *CodeGenerator) CodegenExpression(node Expression) *Expression {
 }
 
 // CodegenArithmeticExpression generates code for an arithmetic expression.
-func (c *CodeGenerator) CodegenArithmeticExpression(node *ArithmeticExpression) *Expression {
+func (c *CodeGenerator) CodegenArithmeticExpression(node *Arithmetic) *Expression {
 	lhs := c.CodegenExpression(node.LHS)
 	rhs := c.CodegenExpression(node.RHS)
 	if lhs == nil || rhs == nil {
@@ -355,7 +353,7 @@ func (c *CodeGenerator) CodegenArithmeticExpression(node *ArithmeticExpression) 
 }
 
 // CodegenVariableExpression generates code for a variable expression.
-func (c *CodeGenerator) CodegenVariableExpression(node *VariableExpression) *Expression {
+func (c *CodeGenerator) CodegenVariableExpression(node *Variable) *Expression {
 	// Make sure the variable is defined.
 	if _, exists := c.Variables[node.Variable]; !exists {
 		c.Errors = append(c.Errors, Error{
@@ -369,7 +367,7 @@ func (c *CodeGenerator) CodegenVariableExpression(node *VariableExpression) *Exp
 }
 
 // CodegenIntLiteral generates code for an integer literal.
-func (c *CodeGenerator) CodegenIntLiteral(node *IntLiteral) *Expression {
+func (c *CodeGenerator) CodegenIntLiteral(node *IntNum) *Expression {
 	return &Expression{
 		Code: fmt.Sprintf("%d", node.Value),
 		Type: Integer,
@@ -377,7 +375,7 @@ func (c *CodeGenerator) CodegenIntLiteral(node *IntLiteral) *Expression {
 }
 
 // CodegenFloatLiteral generates code for an float literal.
-func (c *CodeGenerator) CodegenFloatLiteral(node *FloatLiteral) *Expression {
+func (c *CodeGenerator) CodegenFloatLiteral(node *FloatNum) *Expression {
 	return &Expression{
 		Code: fmt.Sprintf("%f", node.Value),
 		Type: Float,
@@ -386,15 +384,15 @@ func (c *CodeGenerator) CodegenFloatLiteral(node *FloatLiteral) *Expression {
 
 // CodegenBooleanExpression generates code for a CPL boolean expression, and returns
 // the temporary variable that stores its result.
-func (c *CodeGenerator) CodegenBooleanExpression(node BooleanExpression) string {
+func (c *CodeGenerator) CodegenBooleanExpression(node Boolean) string {
 	switch s := node.(type) {
-	case *OrBooleanExpression:
+	case *Or:
 		return c.CodegenOrBooleanExpression(s)
-	case *AndBooleanExpression:
+	case *And:
 		return c.CodegenAndBooleanExpression(s)
-	case *NotBooleanExpression:
+	case *Not:
 		return c.CodegenNotBooleanExpression(s)
-	case *CompareBooleanExpression:
+	case *Compare:
 		return c.CodegenCompareBooleanExpression(s)
 	}
 
@@ -402,7 +400,7 @@ func (c *CodeGenerator) CodegenBooleanExpression(node BooleanExpression) string 
 }
 
 // CodegenOrBooleanExpression generates code for a boolean OR operation.
-func (c *CodeGenerator) CodegenOrBooleanExpression(node *OrBooleanExpression) string {
+func (c *CodeGenerator) CodegenOrBooleanExpression(node *Or) string {
 	lhs := c.CodegenBooleanExpression(node.LHS)
 	rhs := c.CodegenBooleanExpression(node.RHS)
 	if lhs == "" || rhs == "" {
@@ -426,7 +424,7 @@ func (c *CodeGenerator) CodegenOrBooleanExpression(node *OrBooleanExpression) st
 }
 
 // CodegenAndBooleanExpression generates code for a boolean AND operation.
-func (c *CodeGenerator) CodegenAndBooleanExpression(node *AndBooleanExpression) string {
+func (c *CodeGenerator) CodegenAndBooleanExpression(node *And) string {
 	lhs := c.CodegenBooleanExpression(node.LHS)
 	rhs := c.CodegenBooleanExpression(node.RHS)
 	if lhs == "" || rhs == "" {
@@ -446,7 +444,7 @@ func (c *CodeGenerator) CodegenAndBooleanExpression(node *AndBooleanExpression) 
 }
 
 // CodegenNotBooleanExpression generates code for a boolean NOT operation.
-func (c *CodeGenerator) CodegenNotBooleanExpression(node *NotBooleanExpression) string {
+func (c *CodeGenerator) CodegenNotBooleanExpression(node *Not) string {
 	value := c.CodegenBooleanExpression(node.Value)
 	if value == "" {
 		return ""
@@ -463,16 +461,16 @@ func (c *CodeGenerator) CodegenNotBooleanExpression(node *NotBooleanExpression) 
 }
 
 // CodegenCompareBooleanExpression generates code for a expression comparison.
-func (c *CodeGenerator) CodegenCompareBooleanExpression(node *CompareBooleanExpression) string {
+func (c *CodeGenerator) CodegenCompareBooleanExpression(node *Compare) string {
 	// If the operator is x >= y, convert the AST to x == y || x > y
 	if node.Operator == GreaterThanOrEqualTo {
-		return c.CodegenOrBooleanExpression(&OrBooleanExpression{
-			LHS: &CompareBooleanExpression{
+		return c.CodegenOrBooleanExpression(&Or{
+			LHS: &Compare{
 				LHS:      node.LHS,
 				Operator: EqualTo,
 				RHS:      node.RHS,
 			},
-			RHS: &CompareBooleanExpression{
+			RHS: &Compare{
 				LHS:      node.LHS,
 				Operator: GreaterThan,
 				RHS:      node.RHS,
@@ -482,13 +480,13 @@ func (c *CodeGenerator) CodegenCompareBooleanExpression(node *CompareBooleanExpr
 
 	// If the operator is x <= y, convert the AST to x == y || x < y
 	if node.Operator == LessThenOrEqualTo {
-		return c.CodegenOrBooleanExpression(&OrBooleanExpression{
-			LHS: &CompareBooleanExpression{
+		return c.CodegenOrBooleanExpression(&Or{
+			LHS: &Compare{
 				LHS:      node.LHS,
 				Operator: EqualTo,
 				RHS:      node.RHS,
 			},
-			RHS: &CompareBooleanExpression{
+			RHS: &Compare{
 				LHS:      node.LHS,
 				Operator: LessThan,
 				RHS:      node.RHS,

@@ -109,6 +109,23 @@ var tokens = [...]string{
 	NUM: "NUM",
 }
 
+// MaxIdentifierLength is the maximum length of IDs in CPL.
+const MaxIdentifierLength = 9
+
+// Scanner represents a lexical scanner.
+type Scanner struct {
+	Reader      *bufio.Reader
+	position    Position
+	eof         bool
+	bufferIndex int
+	bufferSize  int
+	buffer      [1024]struct {
+		ch       rune
+		position Position
+	}
+	DisablePositions bool // for testing.
+}
+
 // String returns the string representation of the token.
 func (tok TokenType) String() string {
 	if tok >= 0 && tok < TokenType(len(tokens)) {
@@ -127,23 +144,6 @@ func isLetter(ch rune) bool {
 
 func isDigit(ch rune) bool {
 	return (ch >= '0' && ch <= '9')
-}
-
-// MaxIdentifierLength is the maximum length of IDs in CPL.
-const MaxIdentifierLength = 9
-
-// Scanner represents a lexical scanner.
-type Scanner struct {
-	Reader      *bufio.Reader
-	position    Position
-	eof         bool
-	bufferIndex int
-	bufferSize  int
-	buffer      [1024]struct {
-		ch       rune
-		position Position
-	}
-	DisablePositions bool // for testing.
 }
 
 // NewScanner returns a new instance of Scanner.
@@ -226,7 +226,7 @@ func (s *Scanner) Scan() Token {
 		if ch == '/' {
 			ch2, _ := s.read()
 			if ch2 == '*' {
-				if err := s.skipUntilEndComment(); err != nil {
+				if err := s.skipToEnd(); err != nil {
 					return Token{TokenType: ILLEGAL, Lexeme: "", Position: pos}
 				}
 			} else {
@@ -248,7 +248,7 @@ func (s *Scanner) Scan() Token {
 		return s.scanIdentifier()
 	} else if isDigit(ch) {
 		s.Unscan()
-		return s.scanNumber()
+		return s.scanNum()
 	}
 
 	// Otherwise read the individual character.
@@ -405,7 +405,7 @@ func (s *Scanner) scanIdentifier() Token {
 }
 
 // scanNumber consumes a contiguous series of digits.
-func (s *Scanner) scanNumber() Token {
+func (s *Scanner) scanNum() Token {
 	var buf bytes.Buffer
 	ch, pos := s.read()
 
@@ -422,7 +422,7 @@ func (s *Scanner) scanNumber() Token {
 }
 
 // skipUntilEndComment skips characters until it reaches a '*/' symbol.
-func (s *Scanner) skipUntilEndComment() error {
+func (s *Scanner) skipToEnd() error {
 	for {
 		if ch, _ := s.read(); ch == '*' {
 			// We might be at the end.
