@@ -115,9 +115,6 @@ func (p *Parser) ParseDeclaration() *Declaration {
 		p.addError(newError(token.Lexeme, []string{":"}, token.Position))
 	}
 	declaration.Type = p.ParseType()
-	if declaration.Type == Unknown {
-
-	}
 	if token, ok := p.match(SEMICOLON); !ok {
 		p.addError(newError(token.Lexeme, []string{";"}, token.Position))
 	}
