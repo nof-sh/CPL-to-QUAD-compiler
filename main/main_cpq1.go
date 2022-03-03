@@ -14,7 +14,7 @@ func main() {
 
 	fmt.Fprintln(os.Stderr, "CPL to Quad compiler by Nof Shabtay.")
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "USAGE: ./cpq <input-file>")
+		fmt.Fprintln(os.Stderr, "No input file found for compilation, Please run this program with an input file with '.ou' extension")
 		return
 	}
 	if path.Ext(os.Args[1]) != ".ou" {
