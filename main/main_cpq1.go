@@ -5,7 +5,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	""
+
+	"github.com/nof-sh/CPL-to-QUAD-compiler/cpq"
 )
 
 //****************************  Main  ********************************//
@@ -27,11 +28,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Cannot open input CPL file.")
 		return
 	}
-	ast, parseErrors := Parse(string(code))
+	ast, parseErrors := cpq.Parse(string(code))
 	for _, err := range parseErrors {
 		fmt.Fprintf(os.Stderr, "ParseError: %s\n", err.Message)
 	}
-	output, codegenErrors := Codegen(ast)
+	output, codegenErrors := cpq.Codegen(ast)
 	for _, err := range codegenErrors {
 		fmt.Fprintf(os.Stderr, "CodegenError: %s\n", err.Message)
 	}
@@ -39,6 +40,6 @@ func main() {
 	if len(parseErrors) == 0 && len(codegenErrors) == 0 {
 		// Write file
 		outfile := infile[0:len(infile)-3] + ".qud"
-		ioutil.WriteFile(outfile, []byte(RemoveLabels(output)+"\n"+Name), 0644)
+		ioutil.WriteFile(outfile, []byte(cpq.RemoveLabels(output)+"\n"+Name), 0644)
 	}
 }
