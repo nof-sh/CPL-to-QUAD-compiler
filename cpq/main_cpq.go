@@ -195,7 +195,7 @@ func (c *CodeGen) CodegenSwitchStatement(node *Switch) {
 	}
 	if exp.Type != Integer {
 		c.Errors = append(c.Errors, ErrorType{
-			Message: fmt.Sprintf("switch expression must be an integer"),
+			Message: "switch expression must be an integer",
 			Pos:     node.Position,
 		})
 	}
@@ -230,7 +230,7 @@ func (c *CodeGen) CodegenSwitchStatement(node *Switch) {
 func (c *CodeGen) CodegenBreakStatement(node *Break) {
 	if len(c.breakStack) == 0 {
 		c.Errors = append(c.Errors, ErrorType{
-			Message: fmt.Sprintf("break statement must be inside a while loop or a switch case"),
+			Message: "break statement must be inside a while loop or a switch case",
 			Pos:     node.Position,
 		})
 		return
