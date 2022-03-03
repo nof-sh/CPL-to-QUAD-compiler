@@ -11,8 +11,8 @@ import (
 
 //****************************  Main  ********************************//
 func main() {
-	var Name = "CPL to Quad compiler by Nof Shabtay."
-	fmt.Fprintln(os.Stderr, Name)
+
+	fmt.Fprintln(os.Stderr, "CPL to Quad compiler by Nof Shabtay.")
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "USAGE: ./cpq <input-file>")
 		return
@@ -40,6 +40,6 @@ func main() {
 	if len(parseErrors) == 0 && len(codegenErrors) == 0 {
 		// Write file
 		outfile := infile[0:len(infile)-3] + ".qud"
-		ioutil.WriteFile(outfile, []byte(cpq.RemoveLabels(output)+"\n"+Name), 0644)
+		ioutil.WriteFile(outfile, []byte(cpq.RemoveLabels(output)+"\n"+"CPL to Quad compiler by Nof Shabtay."), 0644)
 	}
 }
